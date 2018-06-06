@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/MaxnSter/gnet"
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
 	_ "github.com/MaxnSter/gnet/pack/pack_line"
@@ -11,9 +13,13 @@ import (
 )
 
 func main() {
+
+	port := flag.String("p", "2007", "listen port")
+	flag.Parse()
+
 	// single event loop, 多个goroutine处理所有请求, 每个client的所有请求对应固定goroutine,
 	// 多个client时可利用多核,单个客户端时仍不可利用多核
 	option := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceSelf"}
-	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "127.0.0.1:2007")
+	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "127.0.0.1:" + *port)
 	s.StartAndRun()
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/network_practice/sudoku"
 
@@ -12,8 +14,12 @@ import (
 )
 
 func main() {
+
+	port := flag.String("p", "2007", "listen port")
+	flag.Parse()
+
 	// single event loop, 单个goroutine处理所有请求,无法利用多核计算
 	option := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
-	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "127.0.0.1:2007")
+	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "0.0.0.0:" + *port)
 	s.StartAndRun()
 }

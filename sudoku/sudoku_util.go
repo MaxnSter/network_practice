@@ -16,12 +16,12 @@ import (
 
 func Solve(grid string) string {
 
-	for i := 0; i < math.MaxInt16 << 3; i++ {
+	for i := 0; i < math.MaxInt16<<3; i++ {
 	}
 
 	return grid
-	// 这个库有问题,有go routine leak
-	// 用上面循环模拟cpu工作
+	// 这个库有问题,有goroutine leak
+	// 用上面循环模拟cpu计算
 	//if result, err := solver.Solve(grid); err != nil {
 	//	panic(err)
 	//} else {
