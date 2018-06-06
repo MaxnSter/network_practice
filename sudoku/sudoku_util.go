@@ -1,36 +1,59 @@
 package sudoku
 
 import (
+	"fmt"
+	"math"
+	"net/http"
+	_ "net/http/pprof"
 	"strings"
+	"syscall"
 
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/net"
 	"github.com/MaxnSter/gnet/util"
-	"github.com/laurentlp/sudoku-solver/solver"
 )
 
 func Solve(grid string) string {
-	if result, err := solver.Solve(grid); err != nil {
-		panic(err)
-	} else {
-		return result
+
+	for i := 0; i < math.MaxInt16 << 3; i++ {
 	}
+
+	return grid
+	// 这个库有问题,有go routine leak
+	// 用上面循环模拟cpu工作
+	//if result, err := solver.Solve(grid); err != nil {
+	//	panic(err)
+	//} else {
+	//	sb := new(strings.Builder)
+	//	for _, v := range result {
+	//		sb.WriteString(v)
+	//	}
+	//	return sb.String()
+	//}
 }
 
-func Vertify(answer string) bool{
+func Vertify(answer string) bool {
 	return true
 }
 
 type sudokuServer struct {
-	gnetOption *gnet.GnetOption
+	gnetOption   *gnet.GnetOption
 	gnetCallback *gnet.CallBackOption
 	*net.TcpServer
 }
 
-func NewSudokuServer(option *gnet.GnetOption, callBackOption *gnet.CallBackOption, addr string) *sudokuServer{
-	s := &sudokuServer{gnetOption:option, gnetCallback:callBackOption}
+func NewSudokuServer(option *gnet.GnetOption, callBackOption *gnet.CallBackOption, addr string) *sudokuServer {
+	s := &sudokuServer{gnetOption: option, gnetCallback: callBackOption}
 	s.TcpServer = gnet.NewServer(addr, s.gnetCallback, s.gnetOption, s.onMessage)
+
+	go func() {
+		if err := http.ListenAndServe(":8080", nil); err != nil {
+			panic(err)
+		}
+	}()
+	fmt.Println("pid = ", syscall.Getpid())
+
 	return s
 }
 
@@ -48,11 +71,10 @@ func (s *sudokuServer) onMessage(ev iface.Event) {
 			reqContent = req
 		}
 
-		 result := Solve(reqContent)
-		 if reqId != "" {
-		 	result = reqId + ":" + result
-		 }
-		 ev.Session().Send(result)
+		result := Solve(reqContent)
+		if reqId != "" {
+			result = reqId + ":" + result
+		}
+		ev.Session().Send(result)
 	}
 }
-

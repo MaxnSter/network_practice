@@ -63,6 +63,7 @@ func main() {
 }
 
 func runLocal(rd io.Reader) {
+
 	scan := bufio.NewScanner(rd)
 	count := 0
 	start := time.Now()
@@ -76,6 +77,7 @@ func runLocal(rd io.Reader) {
 	fmt.Printf("%f seconds, %d total sudoku, %f us per sudoku\n", elapsed.Seconds(),
 		count,
 		float64(elapsed.Nanoseconds())/1000/float64(count))
+
 }
 
 func runClient(clinetNum int, addr string, rd io.Reader) {
