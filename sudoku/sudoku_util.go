@@ -1,10 +1,12 @@
 package sudoku
 
 import (
+	"bufio"
 	"fmt"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"strings"
 	"syscall"
 
@@ -12,7 +14,21 @@ import (
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/net"
 	"github.com/MaxnSter/gnet/util"
+	_"github.com/laurentlp/sudoku-solver/solver"
 )
+
+func ReadInput(filename string) (input []string) {
+	f, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+
+	scan := bufio.NewScanner(f)
+	for scan.Scan() {
+		input = append(input, scan.Text())
+	}
+	return
+}
 
 func Solve(grid string) string {
 
@@ -48,7 +64,7 @@ func NewSudokuServer(option *gnet.GnetOption, callBackOption *gnet.CallBackOptio
 	s.TcpServer = gnet.NewServer(addr, s.gnetCallback, s.gnetOption, s.onMessage)
 
 	go func() {
-		if err := http.ListenAndServe(":8080", nil); err != nil {
+		if err := http.ListenAndServe(":8088", nil); err != nil {
 			panic(err)
 		}
 	}()

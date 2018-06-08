@@ -15,12 +15,41 @@ import (
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/net"
 	_ "github.com/MaxnSter/gnet/pack/pack_line"
+	"github.com/MaxnSter/gnet/timer"
 	"github.com/MaxnSter/gnet/util"
+	"github.com/MaxnSter/gnet/worker"
 	_ "github.com/MaxnSter/gnet/worker/worker_session_race_other"
 	"github.com/MaxnSter/network_practice/sudoku"
 )
 
+func run() {
+
+	const (
+		kHz = 100
+	)
+
+	pool := worker.MustGetWorkerPool("poolRaceOther")
+	t := timer.NewTimerManager(pool)
+	t.Start()
+	pool.Start()
+
+	qps := 10111
+	ticks, sofa := 0, 0
+
+	t.AddTimer(time.Now(), time.Second / kHz ,nil, func(i time.Time, context iface.Context) {
+		ticks++
+		reqs := qps * ticks / kHz - sofa
+		sofa += reqs
+
+		fmt.Println("req = " , reqs, " sofa = ", sofa)
+	} )
+
+	select {}
+}
+
 func main() {
+
+	run()
 
 	fileName := flag.String("f", "", "input file")
 	isLocal := flag.Bool("l", false, "run batch as local")
@@ -103,7 +132,7 @@ func runClient(clinetNum int, addr string, rd io.Reader) {
 	wg.Wait()
 }
 
-type sudokuClient struct {
+type baseSudokuClient struct {
 	*net.TcpClient
 
 	id    int
@@ -113,26 +142,26 @@ type sudokuClient struct {
 	end   time.Time
 }
 
-func NewSudokuClient(id int, input []string) *sudokuClient {
-	return &sudokuClient{input: input, id: id}
+func NewSudokuClient(id int, input []string) *baseSudokuClient {
+	return &baseSudokuClient{input: input, id: id}
 }
 
-func (s *sudokuClient) StartAndRun(addr string) {
-	callback := gnet.NewCallBackOption(gnet.WithOnConeectCB(s.onConnect))
+func (s *baseSudokuClient) StartAndRun(addr string) {
+	callback := gnet.NewCallBackOption(gnet.WithOnConnectCB(s.onConnect))
 	gnetOption := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
 
 	s.TcpClient = gnet.NewClient(addr, callback, gnetOption, s.onMessage)
 	s.TcpClient.StartAndRun()
 }
 
-func (s *sudokuClient) onConnect(session *net.TcpSession) {
+func (s *baseSudokuClient) onConnect(session *net.TcpSession) {
 	s.start = time.Now()
 	for _, req := range s.input {
 		session.Send(req)
 	}
 }
 
-func (s *sudokuClient) onMessage(ev iface.Event) {
+func (s *baseSudokuClient) onMessage(ev iface.Event) {
 	switch msg := ev.Message().(type) {
 	case []byte:
 		if sudoku.Vertify(util.BytesToString(msg)) {

@@ -20,6 +20,6 @@ func main() {
 
 	// single event loop, 单个goroutine处理所有请求,无法利用多核计算
 	option := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
-	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "0.0.0.0:" + *port)
+	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "0.0.0.0:"+*port)
 	s.StartAndRun()
 }
