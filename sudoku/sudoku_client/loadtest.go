@@ -28,15 +28,26 @@ func main() {
 	rps := flag.Int("r", 100, "request per second")
 	addr := flag.String("addr", ":2007", "server address")
 	file := flag.String("f", "", "sudoku input file")
+	pipelineMode := flag.Bool("p", false, "pipeline mode")
 
 	flag.Parse()
-
 	if *file == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	NewLoadTest(*conn, *rps, *addr, *file).RunLoadTest()
+	if *pipelineMode {
+		NewLoadTestWithHook(*conn, *rps, *addr, *file,
+			func(client *loadTestClient) {
+				client.send(*rps)
+			},
+			func(client *loadTestClient, ev iface.Event) {
+				client.send(1)
+			},
+		).RunLoadTest(true)
+	} else {
+		NewLoadTest(*conn, *rps, *addr, *file).RunLoadTest(false)
+	}
 }
 
 const (
@@ -59,18 +70,24 @@ type loadTest struct {
 	clients    []*loadTestClient
 }
 
-func (l *loadTest) RunLoadTest() {
+func (l *loadTest) RunLoadTest(recordOnly bool) {
 	wg := sync.WaitGroup{}
 
 	for _, c := range l.clients {
 		wg.Add(1)
-		c.run()
+		c := c
+		go func() {
+			c.run()
+			wg.Done()
+		}()
 	}
 
-	l.timers.AddTimer(time.Now(), time.Second/kHZ, nil, l.tick)
+	l.timers.Start()
+	if !recordOnly {
+		l.timers.AddTimer(time.Now(), time.Second/kHZ, nil, l.tick)
+	}
 	l.timers.AddTimer(time.Now(), time.Second, nil, l.tock)
 
-	l.timers.Start()
 	l.pool.Start()
 	wg.Wait()
 }
@@ -97,6 +114,31 @@ func (l *loadTest) tock(_ time.Time, _ iface.Context) {
 
 	// 打印测试情况
 	logger.Infoln(sudoku.NewPercentile(latencies, infly).Report())
+}
+
+func NewLoadTestWithHook(conn int, rps int, addr string, file string,
+	onConnectHook func(*loadTestClient), onMessageHook func(*loadTestClient, iface.Event)) *loadTest {
+
+	l := &loadTest{
+		conn: conn,
+		rps:  rps,
+		addr: addr,
+		file: file,
+
+		input:      sudoku.ReadInput(file),
+		gnetOption: &gnet.GnetOption{Coder: "byte", Packer: "line"},
+	}
+
+	l.pool = worker.MustGetWorkerPool("poolRaceOther")
+	l.timers = timer.NewTimerManager(l.pool)
+	l.clients = make([]*loadTestClient, 0)
+
+	for i := 0; i < l.conn; i++ {
+		c := NewLoadTestClientWithCallBack(addr, l.gnetOption, l.pool, "conn"+strconv.Itoa(i), l.input, onConnectHook)
+		c.setOnMessageHook(onMessageHook)
+		l.clients = append(l.clients, c)
+	}
+	return l
 }
 
 func NewLoadTest(conn int, rps int, addr string, file string) *loadTest {
@@ -134,6 +176,33 @@ type loadTestClient struct {
 	loadCounter
 	*net.TcpClient
 	*net.TcpSession
+
+	hook func(*loadTestClient, iface.Event)
+}
+
+func NewLoadTestClientWithCallBack(addr string, gnetOption *gnet.GnetOption, sharePool iface.WorkerPool,
+	name string, input []string, hook func(*loadTestClient)) *loadTestClient {
+
+	c := &loadTestClient{
+		name:  name,
+		input: input,
+	}
+
+	c.loadCounter = loadCounter{
+		sendTime:  make(map[int]time.Time),
+		latencies: make([]int, 0),
+	}
+
+	onConnect := func(session *net.TcpSession) {
+		c.TcpSession = session
+		if hook != nil {
+			hook(c)
+		}
+	}
+	cb := gnet.NewCallBackOption(gnet.WithOnConnectCB(onConnect))
+
+	c.TcpClient = gnet.NewClientSharePool(addr, cb, gnetOption, sharePool, c.onMessage)
+	return c
 }
 
 func NewLoadTestClient(addr string, gnetOption *gnet.GnetOption, sharePool iface.WorkerPool,
@@ -157,6 +226,10 @@ func NewLoadTestClient(addr string, gnetOption *gnet.GnetOption, sharePool iface
 	return c
 }
 
+func (c *loadTestClient) setOnMessageHook(hook func(client *loadTestClient, ev iface.Event)) {
+	c.hook = hook
+}
+
 func (c *loadTestClient) run() {
 	c.TcpClient.StartAndRun()
 }
@@ -165,9 +238,15 @@ func (c *loadTestClient) run() {
 func (c *loadTestClient) report(latency *[]int, infly *int) {
 	*latency = append(*latency, c.latencies...)
 	*infly += len(c.sendTime)
+	c.latencies = c.latencies[:0]
 }
 
 func (c *loadTestClient) send(n int) {
+
+	if c.TcpSession == nil {
+		logger.Infoln("waiting for connected...")
+		return
+	}
 
 	now := time.Now()
 	for i := 0; i < n; i++ {
@@ -181,11 +260,15 @@ func (c *loadTestClient) send(n int) {
 }
 
 func (c *loadTestClient) onMessage(ev iface.Event) {
-	switch msg := ev.(type) {
+	switch msg := ev.Message().(type) {
 	case []byte:
 		if !c.verify(msg, time.Now()) {
 			logger.Errorln("error happened, shutdown client")
 			c.TcpClient.Stop()
+		}
+
+		if c.hook != nil {
+			c.hook(c, ev)
 		}
 	default:
 		logger.Errorln("not known msg")
@@ -219,7 +302,7 @@ func (c *loadTestClient) verify(response []byte, recvTime time.Time) bool {
 	latencyUS := recvTime.Sub(sendTime).Nanoseconds() / 1000
 	c.latencies = append(c.latencies, int(latencyUS))
 
-	// 清楚记录
+	// 清除记录
 	delete(c.sendTime, id)
 
 	return true

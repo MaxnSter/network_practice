@@ -15,42 +15,12 @@ import (
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/net"
 	_ "github.com/MaxnSter/gnet/pack/pack_line"
-	"github.com/MaxnSter/gnet/timer"
 	"github.com/MaxnSter/gnet/util"
-	"github.com/MaxnSter/gnet/worker"
 	_ "github.com/MaxnSter/gnet/worker/worker_session_race_other"
 	"github.com/MaxnSter/network_practice/sudoku"
 )
 
-func run() {
-
-	const (
-		kHz = 100
-	)
-
-	pool := worker.MustGetWorkerPool("poolRaceOther")
-	t := timer.NewTimerManager(pool)
-	t.Start()
-	pool.Start()
-
-	qps := 10111
-	ticks, sofa := 0, 0
-
-	t.AddTimer(time.Now(), time.Second / kHz ,nil, func(i time.Time, context iface.Context) {
-		ticks++
-		reqs := qps * ticks / kHz - sofa
-		sofa += reqs
-
-		fmt.Println("req = " , reqs, " sofa = ", sofa)
-	} )
-
-	select {}
-}
-
 func main() {
-
-	run()
-
 	fileName := flag.String("f", "", "input file")
 	isLocal := flag.Bool("l", false, "run batch as local")
 	clientNum := flag.Int("c", 1, "clientNum")

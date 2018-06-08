@@ -27,12 +27,12 @@ func NewPercentile(latencies []int, inlfy int) *Percentile {
 		p90 := p.getPercentile(latencies, 90)
 		p99 := p.getPercentile(latencies, 99)
 
-		p.stats.WriteString(" min " + strconv.Itoa(min))
-		p.stats.WriteString(" mam " + strconv.Itoa(max))
-		p.stats.WriteString(" avg " + strconv.Itoa(mean))
-		p.stats.WriteString(" median " + strconv.Itoa(median))
-		p.stats.WriteString(" p90 " + strconv.Itoa(p90))
-		p.stats.WriteString(" p99 " + strconv.Itoa(p99))
+		p.stats.WriteString(" min " + strconv.Itoa(min) + "us ")
+		p.stats.WriteString(" max " + strconv.Itoa(max) + "us ")
+		p.stats.WriteString(" avg " + strconv.Itoa(mean) + "us ")
+		p.stats.WriteString(" median " + strconv.Itoa(median) + "us ")
+		p.stats.WriteString(" p90 " + strconv.Itoa(p90) + "us ")
+		p.stats.WriteString(" p99 " + strconv.Itoa(p99) + "us ")
 	}
 
 	return p
