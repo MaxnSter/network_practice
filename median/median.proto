@@ -1,0 +1,29 @@
+syntax = "proto3";
+package madian;
+
+message generateRequest {
+    uint32 Id = 1;
+    int64 Count = 2;
+    int64 Min = 3;
+    int64 Max = 4;
+}
+
+message QueryResponse {
+    uint32 Id = 1;
+    int64 Count = 2;
+    int64 Min = 3;
+    int64 Max = 4;
+    int64 Sum = 5;
+}
+
+//findK的search
+message SeachRequest {
+    uint32 Id = 1;
+    int64 Guess = 2;
+}
+
+message SearchResponse {
+    uint32 Id = 1;
+    int64 Smaller = 2;
+    int64 Same = 3;
+}
