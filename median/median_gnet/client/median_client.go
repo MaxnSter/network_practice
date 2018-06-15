@@ -144,6 +144,11 @@ func NewCollector() *collector {
 }
 
 func main() {
+	if len(os.Args) <= 1 {
+		fmt.Println("[median_client] addr1 aadr2...")
+		os.Exit(1)
+	}
+
 	c := NewCollector()
 	c.Connect(os.Args[1:]...)
 	c.Run(0, 200, 50, 10)

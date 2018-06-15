@@ -1,15 +1,15 @@
 syntax = "proto3";
-package madian;
+package median_grpc;
 
 message generateRequest {
-    uint32 Id = 1;
+    uint64 Id = 1;
     int64 Count = 2;
     int64 Min = 3;
     int64 Max = 4;
 }
 
 message QueryResponse {
-    uint32 Id = 1;
+    uint64 Id = 1;
     int64 Count = 2;
     int64 Min = 3;
     int64 Max = 4;
@@ -18,12 +18,18 @@ message QueryResponse {
 
 //findK的search
 message SeachRequest {
-    uint32 Id = 1;
+    uint64 Id = 1;
     int64 Guess = 2;
 }
 
 message SearchResponse {
-    uint32 Id = 1;
+    uint64 Id = 1;
     int64 Smaller = 2;
     int64 Same = 3;
+}
+
+service Median {
+    rpc Generate(generateRequest) returns (QueryResponse){}
+
+    rpc Search(SeachRequest) returns (SearchResponse) {}
 }
