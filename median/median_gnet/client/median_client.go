@@ -9,8 +9,8 @@ import (
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/gnet/logger"
 	"github.com/MaxnSter/gnet/worker_pool"
-	"github.com/MaxnSter/network_practice/median"
 	"github.com/MaxnSter/network_practice/median/kth"
+	"github.com/MaxnSter/network_practice/median/median_gnet"
 
 	_ "github.com/MaxnSter/gnet/codec/codec_msgpack"
 	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_type_length_value"
@@ -33,14 +33,14 @@ type collector struct {
 
 func (c *collector) onMessage(ev gnet.Event) {
 	switch msg := ev.Message().(type) {
-	case *median.QueryResponse:
+	case *median_gnet.QueryResponse:
 		c.onQueryResponse(msg)
-	case *median.SearchResponse:
+	case *median_gnet.SearchResponse:
 		c.onSearchResponse(msg)
 	}
 }
 
-func (c *collector) onQueryResponse(response *median.QueryResponse) {
+func (c *collector) onQueryResponse(response *median_gnet.QueryResponse) {
 	if response.Max > c.max {
 		c.max = response.Max
 	}
@@ -59,14 +59,14 @@ func (c *collector) onConnected(s gnet.NetSession) {
 	c.wg.Done()
 }
 
-func (c *collector) onSearchResponse(response *median.SearchResponse) {
+func (c *collector) onSearchResponse(response *median_gnet.SearchResponse) {
 	c.same += response.Same
 	c.smaller += response.Smaller
 	c.wg.Done()
 }
 
 func (c *collector) Generate(count, min, max int) {
-	req := &median.GenerateRequest{Id: median.IdGenerateRequest}
+	req := &median_gnet.GenerateRequest{Id: median_gnet.IdGenerateRequest}
 	req.Count = count
 	req.Min = min
 	req.Max = max
@@ -98,7 +98,7 @@ func (c *collector) search(guest int) (smaller, same int) {
 	c.same = 0
 	c.smaller = 0
 
-	req := &median.SearchRequest{Id: median.IdSearchRequest}
+	req := &median_gnet.SearchRequest{Id: median_gnet.IdSearchRequest}
 	req.Guess = guest
 
 	for _, s := range c.connections {

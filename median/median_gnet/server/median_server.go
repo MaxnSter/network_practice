@@ -13,7 +13,7 @@ import (
 
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/gnet/logger"
-	"github.com/MaxnSter/network_practice/median"
+	"github.com/MaxnSter/network_practice/median/median_gnet"
 
 	_ "github.com/MaxnSter/gnet/codec/codec_msgpack"
 	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_type_length_value"
@@ -29,8 +29,8 @@ type medianServer struct {
 }
 
 func (ms *medianServer) onQuery(s gnet.NetSession) {
-	respone := &median.QueryResponse{
-		Id:    median.IdQueryResponse,
+	respone := &median_gnet.QueryResponse{
+		Id:    median_gnet.IdQueryResponse,
 		Count: len(ms.data),
 		Min:   ms.data[0],
 		Max:   ms.data[len(ms.data)-1],
@@ -49,7 +49,7 @@ func (ms *medianServer) onGenerate(min, max, count int, s gnet.NetSession) {
 }
 
 func (ms *medianServer) onSearch(guess int, s gnet.NetSession) {
-	response := &median.SearchResponse{Id: median.IdSearchResponse}
+	response := &median_gnet.SearchResponse{Id: median_gnet.IdSearchResponse}
 	for i := 0; i < len(ms.data); i++ {
 		if ms.data[i] < guess {
 			response.Smaller++
@@ -108,9 +108,9 @@ func NewMedianServer(machineId int, port string) *medianServer {
 
 func (ms *medianServer) onMessage(ev gnet.Event) {
 	switch msg := ev.Message().(type) {
-	case *median.GenerateRequest:
+	case *median_gnet.GenerateRequest:
 		ms.onGenerate(msg.Min, msg.Max, msg.Count, ev.Session())
-	case *median.SearchRequest:
+	case *median_gnet.SearchRequest:
 		ms.onSearch(msg.Guess, ev.Session())
 	default:
 		logger.Errorln("unknown msg type")

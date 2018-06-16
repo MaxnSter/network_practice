@@ -1,3 +1,10 @@
+/*
+NOTE:
+Median defined as:
+
+[1, 2, 3, 4, 5] => 3
+[1, 2, 3, 4, 5, 6] => 3, not 3.5
+*/
 package kth
 
 import (
@@ -6,6 +13,7 @@ import (
 	"github.com/MaxnSter/gnet/logger"
 )
 
+//不过要求得到3.5这个结果也很简单 (FindKth(3)+FindKth(4))/2就好
 // 传入一个猜测的数字,返回数组中比这个数小,与这个数相等的元素的个数
 type Search func(guess int) (smaller, same int)
 
