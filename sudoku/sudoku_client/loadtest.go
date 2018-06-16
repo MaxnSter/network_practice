@@ -12,12 +12,12 @@ import (
 
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
 	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_line"
+	_ "github.com/MaxnSter/gnet/net/tcp"
 	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_other"
 
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/logger"
-	"github.com/MaxnSter/gnet/net"
 	"github.com/MaxnSter/gnet/timer"
 	"github.com/MaxnSter/gnet/util"
 	"github.com/MaxnSter/gnet/worker_pool"
@@ -40,16 +40,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 为了将pipeline测试和压力测试写在一个文件里
+	// 所以看起来有点乱
 	if *pipelineMode {
+		//pipeline测试
 		NewLoadTestWithHook(*conn, *rps, *addr, *file,
 			func(client *loadTestClient) {
+				//建立连接后,发送管道长度的消息
 				client.send(*rps)
 			},
-			func(client *loadTestClient, ev iface.Event) {
+			func(client *loadTestClient, ev gnet.Event) {
+				//每接收到一个消息,发送一个,保持infly始终等于我们指定的pipeline长度
 				client.send(1)
 			},
 		).RunLoadTest(true)
 	} else {
+		//压力测试
 		NewLoadTest(*conn, *rps, *addr, *file).RunLoadTest(false)
 	}
 }
@@ -68,10 +74,10 @@ type loadTest struct {
 	ticks int64
 	soFar int64
 
-	gnetOption *gnet.GnetOption
-	pool       iface.WorkerPool
-	timers     *timer.timerManager
-	clients    []*loadTestClient
+	module  gnet.Module
+	pool    worker_pool.Pool
+	timers  timer.TimerManager
+	clients []*loadTestClient
 }
 
 func (l *loadTest) RunLoadTest(recordOnly bool) {
@@ -82,21 +88,26 @@ func (l *loadTest) RunLoadTest(recordOnly bool) {
 		c := c
 		go func() {
 			c.run()
+
+			//client shutdown
 			wg.Done()
 		}()
 	}
 
 	l.timers.Start()
+	//pipeline test recordOnly
 	if !recordOnly {
 		l.timers.AddTimer(time.Now(), time.Second/kHZ, nil, l.tick)
 	}
 	l.timers.AddTimer(time.Now(), time.Second, nil, l.tock)
 
+	//pool保证多次重复start()调用安全,只会生成一个eventLoop
 	l.pool.Start()
 	wg.Wait()
 }
 
 func (l *loadTest) tick(_ time.Time, _ iface.Context) {
+	// 这三个表示保证不会有因向下取整而少发的问题
 	l.ticks++
 	reqs := int64(l.rps)*l.ticks/kHZ - l.soFar
 	l.soFar += reqs
@@ -109,6 +120,7 @@ func (l *loadTest) tick(_ time.Time, _ iface.Context) {
 }
 
 func (l *loadTest) tock(_ time.Time, _ iface.Context) {
+	// 收集当前所有client的数据
 	latencies := make([]int, 0)
 	infly := 0
 
@@ -116,12 +128,12 @@ func (l *loadTest) tock(_ time.Time, _ iface.Context) {
 		c.report(&latencies, &infly)
 	}
 
-	// 打印测试情况
 	logger.Infoln(sudoku.NewPercentile(latencies, infly).Report())
 }
 
+// for pipeline test
 func NewLoadTestWithHook(conn int, rps int, addr string, file string,
-	onConnectHook func(*loadTestClient), onMessageHook func(*loadTestClient, iface.Event)) *loadTest {
+	onConnectHook func(*loadTestClient), onMessageHook func(*loadTestClient, gnet.Event)) *loadTest {
 
 	l := &loadTest{
 		conn: conn,
@@ -129,8 +141,8 @@ func NewLoadTestWithHook(conn int, rps int, addr string, file string,
 		addr: addr,
 		file: file,
 
-		input:      sudoku.ReadInput(file),
-		gnetOption: &gnet.GnetOption{Coder: "byte", Packer: "line"},
+		input:  sudoku.ReadInput(file),
+		module: gnet.NewModule(gnet.WithPacker("line"), gnet.WithCoder("byte")),
 	}
 
 	l.pool = worker_pool.MustGetWorkerPool("poolRaceOther")
@@ -138,7 +150,7 @@ func NewLoadTestWithHook(conn int, rps int, addr string, file string,
 	l.clients = make([]*loadTestClient, 0)
 
 	for i := 0; i < l.conn; i++ {
-		c := NewLoadTestClientWithCallBack(addr, l.gnetOption, l.pool, "conn"+strconv.Itoa(i), l.input, onConnectHook)
+		c := NewLoadTestClientWithCallBack(addr, l.module, l.pool, "conn"+strconv.Itoa(i), l.input, onConnectHook)
 		c.setOnMessageHook(onMessageHook)
 		l.clients = append(l.clients, c)
 	}
@@ -152,16 +164,17 @@ func NewLoadTest(conn int, rps int, addr string, file string) *loadTest {
 		addr: addr,
 		file: file,
 
-		input:      sudoku.ReadInput(file),
-		gnetOption: &gnet.GnetOption{Coder: "byte", Packer: "line"},
+		input:  sudoku.ReadInput(file),
+		module: gnet.NewModule(gnet.WithPacker("line"), gnet.WithCoder("byte")),
 	}
 
 	l.pool = worker_pool.MustGetWorkerPool("poolRaceOther")
+	//all clients and timer share one pool. completely thread safe
 	l.timers = timer.NewTimerManager(l.pool)
 	l.clients = make([]*loadTestClient, 0)
 
 	for i := 0; i < l.conn; i++ {
-		c := NewLoadTestClient(addr, l.gnetOption, l.pool, "conn"+strconv.Itoa(i), l.input)
+		c := NewLoadTestClient(addr, l.module, l.pool, "conn"+strconv.Itoa(i), l.input)
 		l.clients = append(l.clients, c)
 	}
 	return l
@@ -176,20 +189,22 @@ type loadCounter struct {
 type loadTestClient struct {
 	name  string
 	input []string
+	addr  string
 
 	loadCounter
-	*net.TcpClient
-	*net.TcpSession
+	gnet.NetClient
+	gnet.NetSession
 
-	hook func(*loadTestClient, iface.Event)
+	hook func(*loadTestClient, gnet.Event)
 }
 
-func NewLoadTestClientWithCallBack(addr string, gnetOption *gnet.GnetOption, sharePool iface.WorkerPool,
+func NewLoadTestClientWithCallBack(addr string, module gnet.Module, sharePool worker_pool.Pool,
 	name string, input []string, hook func(*loadTestClient)) *loadTestClient {
 
 	c := &loadTestClient{
 		name:  name,
 		input: input,
+		addr:  addr,
 	}
 
 	c.loadCounter = loadCounter{
@@ -197,23 +212,26 @@ func NewLoadTestClientWithCallBack(addr string, gnetOption *gnet.GnetOption, sha
 		latencies: make([]int, 0),
 	}
 
-	onConnect := func(session *net.TcpSession) {
-		c.TcpSession = session
+	//all clients share one pool. completely thread safe
+	module.SetSharePool(sharePool)
+	op := gnet.NewOperator(c.onMessage)
+	op.SetOnConnected(func(s gnet.NetSession) {
+		c.NetSession = s
 		if hook != nil {
 			hook(c)
 		}
-	}
-	cb := gnet.NewCallBackOption(gnet.WithOnConnectCB(onConnect))
+	})
 
-	c.TcpClient = gnet.NewClientSharePool(addr, cb, gnetOption, sharePool, c.onMessage)
+	c.NetClient = gnet.NewNetClient("tcp", "sudoku_pipeline_client", module, op)
 	return c
 }
 
-func NewLoadTestClient(addr string, gnetOption *gnet.GnetOption, sharePool iface.WorkerPool,
+func NewLoadTestClient(addr string, gnetModule gnet.Module, sharePool worker_pool.Pool,
 	name string, input []string) *loadTestClient {
 	c := &loadTestClient{
 		name:  name,
 		input: input,
+		addr:  addr,
 	}
 
 	c.loadCounter = loadCounter{
@@ -221,21 +239,23 @@ func NewLoadTestClient(addr string, gnetOption *gnet.GnetOption, sharePool iface
 		latencies: make([]int, 0),
 	}
 
-	callbacks := gnet.NewCallBackOption(gnet.WithOnConnectCB(func(session *net.TcpSession) {
-		c.TcpSession = session
-	},
-	))
+	//all clients share one pool. completely thread safe
+	gnetModule.SetSharePool(sharePool)
+	operate := gnet.NewOperator(c.onMessage)
+	operate.SetOnConnected(func(s gnet.NetSession) {
+		c.NetSession = s
+	})
 
-	c.TcpClient = gnet.NewClientSharePool(addr, callbacks, gnetOption, sharePool, c.onMessage)
+	c.NetClient = gnet.NewNetClient("tcp", "sudoku_loadtest_client", gnetModule, operate)
 	return c
 }
 
-func (c *loadTestClient) setOnMessageHook(hook func(client *loadTestClient, ev iface.Event)) {
+func (c *loadTestClient) setOnMessageHook(hook func(client *loadTestClient, ev gnet.Event)) {
 	c.hook = hook
 }
 
 func (c *loadTestClient) run() {
-	c.TcpClient.StartAndRun()
+	c.Connect(c.addr)
 }
 
 // 上传自己的延迟记录和未相应个数
@@ -247,7 +267,7 @@ func (c *loadTestClient) report(latency *[]int, infly *int) {
 
 func (c *loadTestClient) send(n int) {
 
-	if c.TcpSession == nil {
+	if c.NetSession == nil {
 		logger.Infoln("waiting for connected...")
 		return
 	}
@@ -256,19 +276,19 @@ func (c *loadTestClient) send(n int) {
 	for i := 0; i < n; i++ {
 		content := c.input[c.count%len(c.input)]
 		req := fmt.Sprintf("%s-%08d:%s", c.name, c.count, content)
-		c.TcpSession.Send(req)
+		c.NetSession.Send(req)
 
 		c.sendTime[c.count] = now
 		c.count++
 	}
 }
 
-func (c *loadTestClient) onMessage(ev iface.Event) {
+func (c *loadTestClient) onMessage(ev gnet.Event) {
 	switch msg := ev.Message().(type) {
 	case []byte:
 		if !c.verify(msg, time.Now()) {
 			logger.Errorln("error happened, shutdown client")
-			c.TcpClient.Stop()
+			c.NetClient.Stop()
 		}
 
 		if c.hook != nil {
@@ -276,7 +296,7 @@ func (c *loadTestClient) onMessage(ev iface.Event) {
 		}
 	default:
 		logger.Errorln("not known msg")
-		c.TcpClient.Stop()
+		c.NetClient.Stop()
 	}
 }
 

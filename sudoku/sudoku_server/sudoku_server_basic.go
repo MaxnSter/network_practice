@@ -8,9 +8,7 @@ import (
 
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
 	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_line"
-	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_norace"
 	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_other"
-	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_self"
 )
 
 func main() {
@@ -19,7 +17,10 @@ func main() {
 	flag.Parse()
 
 	// single event loop, 单个goroutine处理所有请求,无法利用多核计算
-	option := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
-	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "0.0.0.0:"+*port)
-	s.StartAndRun()
+	m := gnet.NewModule()
+	m.SetPacker("line")
+	m.SetCoder("byte")
+	m.SetPool("poolRaceOther")
+	s := sudoku.NewSudokuServer(m, "0.0.0.0:"+*port)
+	s.Serve()
 }

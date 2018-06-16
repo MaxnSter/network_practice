@@ -17,7 +17,8 @@ func main() {
 
 	// single event loop, goroutine pool处理所有请求,每个请求对应不同goroutine
 	// 单个或多个client时可利用多核
-	option := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolNoRace"}
-	s := sudoku.NewSudokuServer(option, &gnet.CallBackOption{}, "127.0.0.1:"+*port)
-	s.StartAndRun()
+	m := gnet.NewModule(gnet.WithCoder("byte"), gnet.WithPacker("line"),
+		gnet.WithPool("poolNoRace"))
+	s := sudoku.NewSudokuServer(m, "0.0.0.0:"+*port)
+	s.Serve()
 }

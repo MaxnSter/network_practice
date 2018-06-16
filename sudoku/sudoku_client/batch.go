@@ -12,9 +12,8 @@ import (
 
 	"github.com/MaxnSter/gnet"
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
-	"github.com/MaxnSter/gnet/iface"
 	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_line"
-	"github.com/MaxnSter/gnet/net"
+	_ "github.com/MaxnSter/gnet/net/tcp"
 	"github.com/MaxnSter/gnet/util"
 	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_other"
 	"github.com/MaxnSter/network_practice/sudoku"
@@ -39,6 +38,7 @@ func main() {
 	defer f.Close()
 
 	if *isLocal {
+		//本地测试,没有网络交互,得出极限值
 		runLocal(f)
 		return
 	}
@@ -48,6 +48,7 @@ func main() {
 			flag.Usage()
 			os.Exit(1)
 		}
+		//测试网络开销
 		runClient(*clientNum, *addr, f)
 		return
 	}
@@ -103,7 +104,7 @@ func runClient(clinetNum int, addr string, rd io.Reader) {
 }
 
 type baseSudokuClient struct {
-	*net.TcpClient
+	gnet.NetClient
 
 	id    int
 	input []string
@@ -117,21 +118,24 @@ func NewSudokuClient(id int, input []string) *baseSudokuClient {
 }
 
 func (s *baseSudokuClient) StartAndRun(addr string) {
-	callback := gnet.NewCallBackOption(gnet.WithOnConnectCB(s.onConnect))
-	gnetOption := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
+	operator := gnet.NewOperator(s.onMessage)
+	operator.SetOnConnected(s.onConnect)
 
-	s.TcpClient = gnet.NewDefaultClient(addr, callback, gnetOption, s.onMessage)
-	s.TcpClient.StartAndRun()
+	module := gnet.NewModule(gnet.WithPacker("line"), gnet.WithCoder("byte"),
+		gnet.WithPool("poolRaceOther"))
+
+	s.NetClient = gnet.NewNetClient("tcp", "sudoku_batch", module, operator)
+	s.Connect("addr")
 }
 
-func (s *baseSudokuClient) onConnect(session *net.TcpSession) {
+func (s *baseSudokuClient) onConnect(session gnet.NetSession) {
 	s.start = time.Now()
 	for _, req := range s.input {
 		session.Send(req)
 	}
 }
 
-func (s *baseSudokuClient) onMessage(ev iface.Event) {
+func (s *baseSudokuClient) onMessage(ev gnet.Event) {
 	switch msg := ev.Message().(type) {
 	case []byte:
 		if sudoku.Vertify(util.BytesToString(msg)) {
@@ -139,7 +143,7 @@ func (s *baseSudokuClient) onMessage(ev iface.Event) {
 
 			if s.count == len(s.input) {
 				s.end = time.Now()
-				s.TcpClient.Stop()
+				s.NetClient.Stop()
 				done("client"+strconv.Itoa(s.id), s.count, s.start, s.end)
 			}
 		}
