@@ -13,10 +13,10 @@ import (
 	"github.com/MaxnSter/gnet"
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
 	"github.com/MaxnSter/gnet/iface"
+	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_line"
 	"github.com/MaxnSter/gnet/net"
-	_ "github.com/MaxnSter/gnet/pack/pack_line"
 	"github.com/MaxnSter/gnet/util"
-	_ "github.com/MaxnSter/gnet/worker/worker_session_race_other"
+	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_other"
 	"github.com/MaxnSter/network_practice/sudoku"
 )
 
@@ -120,7 +120,7 @@ func (s *baseSudokuClient) StartAndRun(addr string) {
 	callback := gnet.NewCallBackOption(gnet.WithOnConnectCB(s.onConnect))
 	gnetOption := &gnet.GnetOption{Packer: "line", Coder: "byte", WorkerPool: "poolRaceOther"}
 
-	s.TcpClient = gnet.NewClient(addr, callback, gnetOption, s.onMessage)
+	s.TcpClient = gnet.NewDefaultClient(addr, callback, gnetOption, s.onMessage)
 	s.TcpClient.StartAndRun()
 }
 

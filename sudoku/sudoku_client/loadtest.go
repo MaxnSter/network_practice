@@ -7,11 +7,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/MaxnSter/gnet/codec/codec_byte"
-	_ "github.com/MaxnSter/gnet/pack/pack_line"
-	_ "github.com/MaxnSter/gnet/worker/worker_session_race_other"
+	_ "github.com/MaxnSter/gnet/message_pack/pack/pack_line"
+	_ "github.com/MaxnSter/gnet/worker_pool/worker_session_race_other"
 
 	"github.com/MaxnSter/gnet"
 	"github.com/MaxnSter/gnet/iface"
@@ -19,11 +20,14 @@ import (
 	"github.com/MaxnSter/gnet/net"
 	"github.com/MaxnSter/gnet/timer"
 	"github.com/MaxnSter/gnet/util"
-	"github.com/MaxnSter/gnet/worker"
+	"github.com/MaxnSter/gnet/worker_pool"
 	"github.com/MaxnSter/network_practice/sudoku"
 )
 
 func main() {
+
+	logger.Infoln("pid = ", syscall.Getpid())
+
 	conn := flag.Int("c", 1, "client number")
 	rps := flag.Int("r", 100, "request per second")
 	addr := flag.String("addr", ":2007", "server address")
@@ -66,7 +70,7 @@ type loadTest struct {
 
 	gnetOption *gnet.GnetOption
 	pool       iface.WorkerPool
-	timers     *timer.TimerManager
+	timers     *timer.timerManager
 	clients    []*loadTestClient
 }
 
@@ -129,7 +133,7 @@ func NewLoadTestWithHook(conn int, rps int, addr string, file string,
 		gnetOption: &gnet.GnetOption{Coder: "byte", Packer: "line"},
 	}
 
-	l.pool = worker.MustGetWorkerPool("poolRaceOther")
+	l.pool = worker_pool.MustGetWorkerPool("poolRaceOther")
 	l.timers = timer.NewTimerManager(l.pool)
 	l.clients = make([]*loadTestClient, 0)
 
@@ -152,7 +156,7 @@ func NewLoadTest(conn int, rps int, addr string, file string) *loadTest {
 		gnetOption: &gnet.GnetOption{Coder: "byte", Packer: "line"},
 	}
 
-	l.pool = worker.MustGetWorkerPool("poolRaceOther")
+	l.pool = worker_pool.MustGetWorkerPool("poolRaceOther")
 	l.timers = timer.NewTimerManager(l.pool)
 	l.clients = make([]*loadTestClient, 0)
 

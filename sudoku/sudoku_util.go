@@ -14,7 +14,7 @@ import (
 	"github.com/MaxnSter/gnet/iface"
 	"github.com/MaxnSter/gnet/net"
 	"github.com/MaxnSter/gnet/util"
-	_"github.com/laurentlp/sudoku-solver/solver"
+	_ "github.com/laurentlp/sudoku-solver/solver"
 )
 
 func ReadInput(filename string) (input []string) {
@@ -61,7 +61,7 @@ type sudokuServer struct {
 
 func NewSudokuServer(option *gnet.GnetOption, callBackOption *gnet.CallBackOption, addr string) *sudokuServer {
 	s := &sudokuServer{gnetOption: option, gnetCallback: callBackOption}
-	s.TcpServer = gnet.NewServer(addr, s.gnetCallback, s.gnetOption, s.onMessage)
+	s.TcpServer = gnet.NewDefaultServer(addr, s.gnetCallback, s.gnetOption, s.onMessage)
 
 	go func() {
 		if err := http.ListenAndServe(":8088", nil); err != nil {

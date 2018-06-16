@@ -1,0 +1,22 @@
+syntax = "proto3";
+package nqueens_proto;
+
+message SubProblemRequest {
+    // 皇后个数
+    int32 nqueens = 1;
+
+    // 皇后放在第一行的位置
+    int32 firstNow = 2;
+}
+
+message SubProblemResponse {
+    // 根据请求求解的个数
+    int64 count = 1;
+
+    // 求解消耗的时间
+    double senconds = 2;
+}
+
+service NQueensService {
+    rpc Solve(SubProblemRequest) returns (SubProblemResponse) {}
+}
