@@ -2,8 +2,9 @@
 ==
 Go语言版本的[网络编程实践](http://boolan.com/study/course/4)
 
-使用的网络库为[gnet](https://github.com/MaxnSter/gnet)
-使用的RPC框架为[grpc](https://github.com/grpc/grpc-go)
+使用的网络库:[gnet](https://github.com/MaxnSter/gnet)
+
+使用的RPC框架:[grpc](https://github.com/grpc/grpc-go)
 
 实践内容
 ==
