@@ -1,6 +1,3 @@
 #+TITLE: The Pros of Conds
 
-** [[https://diigo.com/0j1l7d][diigo]]
-** [[https://diigo.com/0j1l7d][test]]
-** [[2020-11-25-12-43-28-d.excalidraw]]
-<iframe class="draw-iframe" src="/draw?file=2020-11-25-12-43-28-d.excalidraw" width="100%" height="400" frameborder="0" allowfullscreen></iframe>
+** 
